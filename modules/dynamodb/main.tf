@@ -1,3 +1,15 @@
+# Minimum constraints only; the environment roots own the actual version pin.
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # prevent_destroy needs a literal, not a variable, so count picks one of two copies — keep them in sync.
 
 resource "aws_dynamodb_table" "this" {
