@@ -1,3 +1,5 @@
+# Execution role for the readings Lambda. Policies are hardcoded for this architecture, not a generic statement-list.
+
 data "aws_iam_policy_document" "lambda_trust" {
   statement {
     effect  = "Allow"
@@ -11,8 +13,9 @@ data "aws_iam_policy_document" "lambda_trust" {
 }
 
 resource "aws_iam_role" "lambda" {
-  name               = "${var.function_name}-role"
+  name               = var.role_name
   assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
+  tags               = var.tags
 }
 
 data "aws_iam_policy_document" "lambda_permissions" {
@@ -26,13 +29,14 @@ data "aws_iam_policy_document" "lambda_permissions" {
       "dynamodb:Query"
     ]
 
-    resources = [aws_dynamodb_table.readings.arn]
+    resources = [var.table_arn]
   }
 }
 
 resource "aws_iam_policy" "lambda_permissions" {
-  name   = "${var.function_name}-policy"
+  name   = var.policy_name
   policy = data.aws_iam_policy_document.lambda_permissions.json
+  tags   = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_policy" {

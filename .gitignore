@@ -1,5 +1,26 @@
-build/
-*.tfstate
-*.tfstate.backup
-.terraform/
+# macOS
 .DS_Store
+
+# Terraform working directories and state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Provider lock files are committed on purpose — see envs/*/.terraform.lock.hcl.
+# CI runs `terraform init -backend=false` and must resolve the same provider
+# versions a local run does, so the locks are tracked rather than ignored.
+
+# Variable files may carry account IDs, ARNs or secrets. The two committed
+# environment files are plain, reviewed configuration and are the exception.
+*.tfvars
+*.tfvars.json
+!envs/dev/terraform.tfvars
+!envs/prod/terraform.tfvars
+
+# Build artefacts
+build/
+*.zip
+__pycache__/
+*.py[cod]
