@@ -1,3 +1,15 @@
+# Minimum constraints only; the environment roots own the actual version pin.
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # Execution role for the readings Lambda. Policies are hardcoded for this architecture, not a generic statement-list.
 
 data "aws_iam_policy_document" "lambda_trust" {

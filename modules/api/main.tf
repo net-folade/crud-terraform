@@ -1,3 +1,15 @@
+# Minimum constraints only; the environment roots own the actual version pin.
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # REST API fronting the readings Lambda, including the permission that lets it invoke.
 
 resource "aws_api_gateway_rest_api" "api" {
