@@ -1,0 +1,163 @@
+name: terraform
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.9.8"
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+
+  validate:
+    name: validate (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # -backend=false initialises modules and providers without touching state.
+      - name: terraform init
+        run: terraform init -backend=false
+        working-directory: envs/${{ matrix.env }}
+
+      - name: terraform validate
+        run: terraform validate
+        working-directory: envs/${{ matrix.env }}
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: tflint --init
+        run: tflint --init
+
+      - name: tflint
+        run: tflint --recursive --format compact
+
+# ---------------------------------------------------------------------------
+# Staged, not yet active. plan and apply cannot work against local state, so these
+# unlock once the S3 backend in envs/*/providers.tf and a GitHub OIDC role exist.
+# Auth is OIDC role assumption only — no long-lived access keys, even in comments.
+#
+#   plan:
+#     name: plan (${{ matrix.env }})
+#     if: github.event_name == 'pull_request'
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#       id-token: write        # required to mint the OIDC token
+#       pull-requests: write   # required to post the plan comment
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         env: [dev, prod]
+#     steps:
+#       - uses: actions/checkout@v4
+#
+#       - uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/github-actions-terraform-plan
+#           aws-region: us-east-1
+#
+#       - uses: hashicorp/setup-terraform@v3
+#         with:
+#           terraform_version: ${{ env.TF_VERSION }}
+#
+#       - name: terraform init
+#         run: terraform init
+#         working-directory: envs/${{ matrix.env }}
+#
+#       - name: terraform plan
+#         id: plan
+#         run: terraform plan -no-color -input=false -out=tfplan
+#         working-directory: envs/${{ matrix.env }}
+#         continue-on-error: true
+#
+#       - name: post plan as PR comment
+#         uses: actions/github-script@v7
+#         with:
+#           script: |
+#             const body = `#### terraform plan — \`${{ matrix.env }}\` \`${{ steps.plan.outcome }}\`
+#
+#             <details><summary>show plan</summary>
+#
+#             \`\`\`terraform
+#             ${{ steps.plan.outputs.stdout }}
+#             \`\`\`
+#
+#             </details>`;
+#             await github.rest.issues.createComment({
+#               issue_number: context.issue.number,
+#               owner: context.repo.owner,
+#               repo: context.repo.repo,
+#               body,
+#             });
+#
+#       - name: fail if plan failed
+#         if: steps.plan.outcome == 'failure'
+#         run: exit 1
+#
+#   apply:
+#     name: apply (${{ matrix.env }})
+#     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+#     needs: [fmt, validate, tflint]
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#       id-token: write
+#     strategy:
+#       max-parallel: 1        # dev before prod, never both at once
+#       matrix:
+#         env: [dev, prod]
+#     environment: ${{ matrix.env }}   # prod gated by a required reviewer
+#     steps:
+#       - uses: actions/checkout@v4
+#
+#       - uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/github-actions-terraform-apply
+#           aws-region: us-east-1
+#
+#       - uses: hashicorp/setup-terraform@v3
+#         with:
+#           terraform_version: ${{ env.TF_VERSION }}
+#
+#       - name: terraform init
+#         run: terraform init
+#         working-directory: envs/${{ matrix.env }}
+#
+#       - name: terraform apply
+#         run: terraform apply -auto-approve -input=false
+#         working-directory: envs/${{ matrix.env }}
+# ---------------------------------------------------------------------------
