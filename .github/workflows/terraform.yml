@@ -52,12 +52,23 @@ jobs:
   tflint:
     name: tflint
     runs-on: ubuntu-latest
+    # --recursive re-reads config from each directory it descends into, so the root
+    # .tflint.hcl only applies everywhere if it is named by absolute path.
+    env:
+      TFLINT_CONFIG_FILE: ${{ github.workspace }}/.tflint.hcl
     steps:
       - uses: actions/checkout@v4
 
       - uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: latest
+
+      # Cache the plugin dir; --init downloads the AWS ruleset on every run otherwise.
+      - name: cache tflint plugins
+        uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('.tflint.hcl') }}
 
       - name: tflint --init
         run: tflint --init
