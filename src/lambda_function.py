@@ -16,7 +16,11 @@ class DecimalEncoder(json.JSONEncoder):
             return int(obj) if obj % 1 == 0 else float(obj)
         return super().default(obj)
 
-def lambda_handler(event, context): 
+def get_device_id(event: dict) -> str | None:
+    # API Gateway sends null, not {}, when the request carries no query string.
+    return (event.get('queryStringParameters') or {}).get('device_id')
+
+def lambda_handler(event, context):
     method = event['httpMethod']
     resource = event['resource']
 
@@ -37,13 +41,19 @@ def lambda_handler(event, context):
         return { 'statusCode': 201, 'body': json.dumps(item, cls=DecimalEncoder) }
     
     elif method == 'GET' and resource == '/readings':
-        device_id = event['queryStringParameters']['device_id']
+        device_id = get_device_id(event)
+        if device_id is None:
+            return { 'statusCode': 400, 'body': json.dumps('Missing required query parameter: device_id') }
+
         response = table.query(KeyConditionExpression=Key('device_id').eq(device_id))
         items = response['Items']
         return { 'statusCode': 200, 'body': json.dumps(items, cls=DecimalEncoder) }
     
     elif method == 'GET' and resource == '/readings/{id}':
-        device_id = event['queryStringParameters']['device_id']
+        device_id = get_device_id(event)
+        if device_id is None:
+            return { 'statusCode': 400, 'body': json.dumps('Missing required query parameter: device_id') }
+
         recorded_at = event['pathParameters']['id']
         response = table.get_item(Key = {'device_id': device_id, 'recorded_at': recorded_at})
         item = response.get('Item')
@@ -53,7 +63,10 @@ def lambda_handler(event, context):
 
     
     elif method == 'PUT' and resource == '/readings/{id}':
-        device_id = event['queryStringParameters']['device_id']
+        device_id = get_device_id(event)
+        if device_id is None:
+            return { 'statusCode': 400, 'body': json.dumps('Missing required query parameter: device_id') }
+
         recorded_at = event['pathParameters']['id']
         data = json.loads(event['body'])
 
@@ -74,7 +87,10 @@ def lambda_handler(event, context):
         
 
     elif method == 'DELETE' and resource == '/readings/{id}':
-        device_id = event['queryStringParameters']['device_id']
+        device_id = get_device_id(event)
+        if device_id is None:
+            return { 'statusCode': 400, 'body': json.dumps('Missing required query parameter: device_id') }
+
         recorded_at = event['pathParameters']['id']
         table.delete_item(Key = {'device_id': device_id, 'recorded_at': recorded_at})
         return { 'statusCode': 204, 'body': json.dumps('Deleted') }

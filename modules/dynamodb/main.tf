@@ -11,6 +11,19 @@ terraform {
 }
 
 # prevent_destroy needs a literal, not a variable, so count picks one of two copies — keep them in sync.
+#
+# Flipping prevent_destroy on an environment that already has a table is a state operation,
+# not a config change. The table moves between resource addresses, so Terraform plans a
+# destroy and a create against the same table name:
+#
+#   false -> true   this[0] carries no guard, so nothing blocks the destroy at plan time.
+#                   deletion_protection_enabled makes AWS refuse it mid-apply instead.
+#   true  -> false  protected[0] carries the guard, so plan hard-errors and cannot proceed.
+#
+# Move the resource first, then change the flag:
+#
+#   terraform state mv 'module.dynamodb.aws_dynamodb_table.this[0]' \
+#                      'module.dynamodb.aws_dynamodb_table.protected[0]'
 
 resource "aws_dynamodb_table" "this" {
   count = var.prevent_destroy ? 0 : 1
